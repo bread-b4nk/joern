@@ -18,9 +18,6 @@ jobs:
           cache: sbt
       - uses: sbt/setup-sbt@v1
       - run: sudo apt update && sudo apt install -y gnupg
-      - run: echo $PGP_SECRET | base64 --decode | gpg --batch --import
-        env:
-          PGP_SECRET: ${{ secrets.PGP_SECRET }}
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -39,16 +36,22 @@ jobs:
           python -m pip install requests pexpect
           sbt joerncli/stage querydb/createDistribution
           python -u ./testDistro.py
-      - run: sbt ciReleaseSkipIfAlreadyReleased ciReleaseTagNextVersion ciReleaseSonatype createDistribution
-        env:
-          SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
-          SONATYPE_USERNAME: ${{ secrets.SONATYPE_USERNAME }}
-      - name: get tagged version
-        run: echo "LATEST_TAG=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
+      - name: Create version tag
+        run: |
+          # Get current version from build file or generate one based on commit
+          TIMESTAMP=$(date +%m%d-%H%M%S)
+          VERSION="v${TIMESTAMP}"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git tag ${VERSION}
+          git push origin ${VERSION}
+      - name: Build distribution
+        run: sbt stage createDistribution
       - name: Trigger release-github workflow
         run: |
           curl -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             https://api.github.com/repos/${{ github.repository }}/actions/workflows/release-github.yml/dispatches \
-            -d '{"ref":"${{ env.LATEST_TAG }}"}'
+            -d '{"ref":"${{ env.VERSION }}"}'
