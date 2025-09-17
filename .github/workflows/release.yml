@@ -1,11 +1,9 @@
 name: release
 on:
-  schedule:
-    - cron: "0 7 * * *" # run once daily - will not create a new release if the current HEAD already has a version tag
-  workflow_dispatch:    # allow to manually trigger this workflow
+  push:
+    branches: [ main ]
 jobs:
   release:
-    if: github.repository_owner == 'joernio'
     concurrency: release
     runs-on: ubuntu-latest
     steps:
